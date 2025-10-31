@@ -17,7 +17,7 @@ option(NATIVE_BUILD "build with -march=native -mtune=native" OFF)
 
 add_executable(wall wall.c avif.c)
 
-target_compile_options(wall PRIVATE -O3 -ffast-math -fmath-errno -fPIC -fPIE -fstack-protector-all)
+target_compile_options(wall PRIVATE -O3 -ffast-math -fmath-errno -flto -fPIC -fPIE -fstack-protector-all)
 
 if(NATIVE_BUILD)
   target_compile_options(wall PRIVATE -march=native -mtune=native)
