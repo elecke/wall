@@ -6,14 +6,14 @@
  * This does not have support for multiple monitors, and will never.
  *
  * Usage:
- *   wall <image> mode [-c RRGGBB]
- *   wall <image> fill [x=N,y=N] [-c RRGGBB]
+ *   wall <image> [-m mode] [-x N] [-y N] [-c RRGGBB]
  *   wall // restore saved settings
  */
 
 #include <Imlib2.h>
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
+#include <argp.h>
 #include <ctype.h>
 #include <limits.h>
 #include <stdio.h>
@@ -24,6 +24,11 @@
 #include "avif.h"
 
 #define CONFIG_FILE "%s/.wprc"
+
+static char doc[] = "Set X root-window wallpaper using Imlib2.\v"
+                    "Run without arguments to restore saved settings.";
+
+static char args_doc[] = "[IMAGE]";
 
 // Wallpaper display modes.
 typedef enum
@@ -55,6 +60,19 @@ typedef struct
     char BgColor[8];
 } WallpaperConfig;
 
+// Arguments passed through argp.
+typedef struct
+{
+    char *Image;
+    char *ModeStr;
+    char *Color;
+    int OffsetX;
+    int OffsetY;
+    int HasOffsetX;
+    int HasOffsetY;
+    int HasMode;
+} Arguments;
+
 // Utility helpers
 static void die(const char *Message) __attribute__((noreturn));
 static void die(const char *Message)
@@ -72,13 +90,6 @@ static WallpaperMode parseMode(const char *Str)
 
     fprintf(stderr, "Invalid mode: %s\nAllowed: center fill max scale tile\n", Str);
     exit(EXIT_FAILURE);
-}
-
-// Parse "x=N,y=M" offset specification. Returns 1 on success, 0 otherwise.
-static int parseOffset(const char *Str, int *OffX, int *OffY)
-{
-    int Parsed = 0;
-    return sscanf(Str, "x=%d,y=%d%n", OffX, OffY, &Parsed) == 2 && Str[Parsed] == '\0';
 }
 
 // Hex digit to integer (0–15).
@@ -144,7 +155,8 @@ static int loadConfig(WallpaperConfig *Cfg)
 
     if (Line[0] == 'x')
     { // offset first
-        if (!parseOffset(Line, &Cfg->OffsetX, &Cfg->OffsetY))
+        int Parsed = 0;
+        if (sscanf(Line, "x=%d,y=%d%n", &Cfg->OffsetX, &Cfg->OffsetY, &Parsed) != 2 || Line[Parsed] != '\0')
             fprintf(stderr, "Invalid offset in rc file\n");
 
         if (fgets(Line, sizeof Line, File))
@@ -361,78 +373,99 @@ static void setWallpaper(const WallpaperConfig *Cfg)
     XCloseDisplay(Dpy);
 }
 
+// argp option definitions
+static struct argp_option options[] = {{"mode", 'm', "MODE", 0, "Display mode (center/fill/max/scale/tile)", 0},
+                                       {"color", 'c', "HEX", 0, "Background colour (RGB or RRGGBB)", 0},
+                                       {"offset-x", 'x', "N", 0, "Horizontal offset (fill/center only)", 0},
+                                       {"offset-y", 'y', "N", 0, "Vertical offset (fill/center only)", 0},
+                                       {0}};
+
+static error_t parse_opt(int Key, char *Arg, struct argp_state *State)
+{
+    Arguments *Args = State->input;
+    char *End;
+
+    switch (Key)
+    {
+    case 'm':
+        Args->ModeStr = Arg;
+        Args->HasMode = 1;
+        break;
+
+    case 'c': {
+        size_t Len = strlen(Arg);
+        if (!(Len == 3 || Len == 6) || strspn(Arg, "0123456789aAbBcCdDeEfF") != Len)
+        {
+            argp_error(State, "Colour must be RGB or RRGGBB");
+        }
+        Args->Color = Arg;
+        break;
+    }
+
+    case 'x':
+        Args->OffsetX = (int)strtol(Arg, &End, 10);
+        if (*End != '\0')
+            argp_error(State, "Invalid X offset: %s", Arg);
+        Args->HasOffsetX = 1;
+        break;
+
+    case 'y':
+        Args->OffsetY = (int)strtol(Arg, &End, 10);
+        if (*End != '\0')
+            argp_error(State, "Invalid Y offset: %s", Arg);
+        Args->HasOffsetY = 1;
+        break;
+
+    case ARGP_KEY_ARG:
+        if (Args->Image)
+            argp_error(State, "Too many arguments");
+        Args->Image = Arg;
+        break;
+
+    default:
+        return ARGP_ERR_UNKNOWN;
+    }
+
+    return 0;
+}
+
+static struct argp argp = {options, parse_opt, args_doc, doc, NULL, NULL, NULL};
+
 // Main entry point
 int main(int Argc, char *Argv[])
 {
     WallpaperConfig Cfg = {.Mode = WM_Fill};
     strcpy(Cfg.BgColor, "000000");
 
-    int Positional = 0;
-    char *Image = NULL;
-    char *ModeStr = NULL;
-    char *OffsetStr = NULL;
+    Arguments Args = {0};
 
-    // Parse command line
-    for (int I = 1; I < Argc; ++I)
+    argp_parse(&argp, Argc, Argv, 0, NULL, &Args);
+
+    if (Args.Color)
+        strncpy(Cfg.BgColor, Args.Color, sizeof Cfg.BgColor - 1);
+
+    if (Args.Image)
     {
-        if (strcmp(Argv[I], "-c") == 0)
-        {
-            if (++I >= Argc)
-            {
-                fprintf(stderr, "-c needs a colour\n");
-                return EXIT_FAILURE;
-            }
-            char *Colour = Argv[I];
-
-            const size_t L = strlen(Colour);
-            if (!(L == 3 || L == 6) || strspn(Colour, "0123456789aAbBcCdDeEfF") != L)
-            {
-                fprintf(stderr, "Colour must be RGB or RRGGBB\n");
-                return EXIT_FAILURE;
-            }
-
-            strncpy(Cfg.BgColor, Colour, sizeof Cfg.BgColor - 1);
-            continue;
-        }
-
-        switch (Positional++)
-        {
-        case 0:
-            Image = Argv[I];
-            break;
-        case 1:
-            ModeStr = Argv[I];
-            break;
-        case 2:
-            OffsetStr = Argv[I];
-            break;
-        default:
-            fprintf(stderr, "Too many arguments!\n");
-            return EXIT_FAILURE;
-        }
-    }
-
-    if (Positional)
-    {
-        if (!realpath(Image, Cfg.Path))
+        if (!realpath(Args.Image, Cfg.Path))
             die("realpath");
 
-        Cfg.Mode = ModeStr ? parseMode(ModeStr) : WM_Fill;
+        Cfg.Mode = Args.HasMode ? parseMode(Args.ModeStr) : WM_Fill;
 
-        if ((Cfg.Mode == WM_Fill || Cfg.Mode == WM_Center) && OffsetStr &&
-            !parseOffset(OffsetStr, &Cfg.OffsetX, &Cfg.OffsetY))
+        if (Args.HasOffsetX || Args.HasOffsetY)
         {
-            fprintf(stderr, "Offset must be x=N,y=M\n");
-            return EXIT_FAILURE;
+            if (Cfg.Mode != WM_Fill && Cfg.Mode != WM_Center)
+            {
+                fprintf(stderr, "Offset only valid for fill/center modes\n");
+                return EXIT_FAILURE;
+            }
+            Cfg.OffsetX = Args.OffsetX;
+            Cfg.OffsetY = Args.OffsetY;
         }
     }
     else if (!loadConfig(&Cfg))
     {
-        fprintf(stderr,
-                "No stored configuration\n"
-                "Usage: %s [image] [mode] [x=N,y=M] [-c colour]"
-                " (offset only for fill and center modes)\n",
-                Argv[0]);
+        fprintf(stderr, "No stored configuration\n");
+        argp_help(&argp, stderr, ARGP_HELP_STD_USAGE, Argv[0]);
         return EXIT_FAILURE;
     }
 
