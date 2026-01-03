@@ -120,8 +120,7 @@ static void saveConfig(const WallpaperConfig *Cfg)
 
     if ((Cfg->Mode == WM_Fill || Cfg->Mode == WM_Center) && (Cfg->OffsetX || Cfg->OffsetY))
     {
-        fprintf(File, "offset_x = %d\n", Cfg->OffsetX);
-        fprintf(File, "offset_y = %d\n", Cfg->OffsetY);
+        fprintf(File, "offset = [%d, %d]\n", Cfg->OffsetX, Cfg->OffsetY);
     }
 
     fprintf(File, "background_color = \"%s\"\n", Cfg->BgColor);
@@ -173,15 +172,15 @@ static int loadConfig(WallpaperConfig *Cfg)
     Cfg->Mode = parseMode(mode_val.u.s);
     free(mode_val.u.s);
 
-    // Get offset_x (optional)
-    toml_value_t offset_x_val = toml_table_int(root, "offset_x");
-    if (offset_x_val.ok)
-        Cfg->OffsetX = (int)offset_x_val.u.i;
-
-    // Get offset_y (optional)
-    toml_value_t offset_y_val = toml_table_int(root, "offset_y");
-    if (offset_y_val.ok)
-        Cfg->OffsetY = (int)offset_y_val.u.i;
+    // Get offset array (optional)
+    toml_array_t *offset_arr = toml_table_array(root, "offset");
+    if (offset_arr && toml_array_len(offset_arr) >= 2)
+    {
+        toml_value_t x_val = toml_array_int(offset_arr, 0);
+        toml_value_t y_val = toml_array_int(offset_arr, 1);
+        if (x_val.ok) Cfg->OffsetX = (int)x_val.u.i;
+        if (y_val.ok) Cfg->OffsetY = (int)y_val.u.i;
+    }
 
     // Get background_color (optional)
     toml_value_t color_val = toml_table_string(root, "background_color");
