@@ -14,6 +14,7 @@ project(wall C)
 set(CMAKE_C_STANDARD 11)
 
 option(NATIVE_BUILD "build with -march=native -mtune=native" OFF)
+option(USE_MIMALLOC "use mimalloc allocator" OFF)
 
 add_executable(wall wall.c avif.c)
 
@@ -45,7 +46,10 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(IMLIB2 REQUIRED imlib2)
 pkg_check_modules(AVIF REQUIRED libavif)
 pkg_check_modules(DAV1D REQUIRED dav1d)
-pkg_check_modules(MIMALLOC mimalloc)
+
+if(USE_MIMALLOC)
+  pkg_check_modules(MIMALLOC REQUIRED mimalloc)
+endif()
 
 target_include_directories(wall PRIVATE
   ${IMLIB2_INCLUDE_DIRS}
@@ -66,7 +70,7 @@ target_link_libraries(wall PRIVATE
   ${DAV1D_LIBRARIES}
 )
 
-if(MIMALLOC_FOUND)
+if(USE_MIMALLOC)
   target_include_directories(wall PRIVATE ${MIMALLOC_INCLUDE_DIRS})
   target_link_directories(wall PRIVATE ${MIMALLOC_LIBRARY_DIRS})
   target_link_libraries(wall PRIVATE ${MIMALLOC_LIBRARIES})
