@@ -1,6 +1,6 @@
 /*
  * A crappy utility to set the X root-window wallpaper using Imlib2.
- * Configuration is stored in "$HOME/.wprc".
+ * Configuration is stored in "$HOME/.wp.toml".
  * Supported display modes: center, fill, max, scale, tile.
  * A solid background colour can be given in RGB or RRGGBB notation.
  * This does not have support for multiple monitors, and will never.
@@ -14,7 +14,6 @@
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
 #include <argp.h>
-#include <ctype.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,8 +21,9 @@
 #include <unistd.h>
 
 #include "avif.h"
+#include "toml-c.h"
 
-#define CONFIG_FILE "%s/.wprc"
+#define CONFIG_FILE "%s/.wp.toml"
 
 static char doc[] = "Set X root-window wallpaper using Imlib2.\v"
                     "Run without arguments to restore saved settings.";
@@ -115,63 +115,84 @@ static void saveConfig(const WallpaperConfig *Cfg)
     if (!File)
         die("open config");
 
-    fprintf(File, "%s\n%s\n", Cfg->Path, ModeLUT[Cfg->Mode].Name);
+    fprintf(File, "path = \"%s\"\n", Cfg->Path);
+    fprintf(File, "mode = \"%s\"\n", ModeLUT[Cfg->Mode].Name);
 
     if ((Cfg->Mode == WM_Fill || Cfg->Mode == WM_Center) && (Cfg->OffsetX || Cfg->OffsetY))
-        fprintf(File, "x=%d,y=%d\n", Cfg->OffsetX, Cfg->OffsetY);
+    {
+        fprintf(File, "offset_x = %d\n", Cfg->OffsetX);
+        fprintf(File, "offset_y = %d\n", Cfg->OffsetY);
+    }
 
-    fprintf(File, "%s\n", Cfg->BgColor);
+    fprintf(File, "background_color = \"%s\"\n", Cfg->BgColor);
     fclose(File);
 }
 
 static int loadConfig(WallpaperConfig *Cfg)
 {
-    char Path[PATH_MAX], ModeStr[32], Line[64];
+    char Path[PATH_MAX];
+    char errbuf[256];
 
     FILE *File = fopen(getConfigPath(Path, sizeof Path), "r");
     if (!File)
         return 0;
 
-    Cfg->OffsetX = Cfg->OffsetY = 0;
-    strcpy(Cfg->BgColor, "000000");
+    toml_table_t *root = toml_parse_file(File, errbuf, sizeof(errbuf));
+    fclose(File);
 
-    if (!fgets(Cfg->Path, PATH_MAX, File) || !fgets(ModeStr, sizeof ModeStr, File))
+    if (!root)
     {
-        fclose(File);
+        fprintf(stderr, "TOML parse error: %s\n", errbuf);
         return 0;
     }
 
-    Cfg->Path[strcspn(Cfg->Path, "\n")] = '\0';
-    ModeStr[strcspn(ModeStr, "\n")] = '\0';
-    Cfg->Mode = parseMode(ModeStr);
+    // Initialize defaults
+    Cfg->OffsetX = Cfg->OffsetY = 0;
+    strcpy(Cfg->BgColor, "000000");
 
-    if (!fgets(Line, sizeof Line, File))
+    // Get path
+    toml_value_t path_val = toml_table_string(root, "path");
+    if (!path_val.ok)
     {
-        fclose(File);
-        return 1; // no optional section present
+        fprintf(stderr, "Config missing 'path' key\n");
+        toml_free(root);
+        return 0;
+    }
+    strncpy(Cfg->Path, path_val.u.s, sizeof(Cfg->Path) - 1);
+    Cfg->Path[sizeof(Cfg->Path) - 1] = '\0';
+    free(path_val.u.s);
+
+    // Get mode
+    toml_value_t mode_val = toml_table_string(root, "mode");
+    if (!mode_val.ok)
+    {
+        fprintf(stderr, "Config missing 'mode' key\n");
+        toml_free(root);
+        return 0;
+    }
+    Cfg->Mode = parseMode(mode_val.u.s);
+    free(mode_val.u.s);
+
+    // Get offset_x (optional)
+    toml_value_t offset_x_val = toml_table_int(root, "offset_x");
+    if (offset_x_val.ok)
+        Cfg->OffsetX = (int)offset_x_val.u.i;
+
+    // Get offset_y (optional)
+    toml_value_t offset_y_val = toml_table_int(root, "offset_y");
+    if (offset_y_val.ok)
+        Cfg->OffsetY = (int)offset_y_val.u.i;
+
+    // Get background_color (optional)
+    toml_value_t color_val = toml_table_string(root, "background_color");
+    if (color_val.ok)
+    {
+        strncpy(Cfg->BgColor, color_val.u.s, sizeof(Cfg->BgColor) - 1);
+        Cfg->BgColor[sizeof(Cfg->BgColor) - 1] = '\0';
+        free(color_val.u.s);
     }
 
-    Line[strcspn(Line, "\n")] = '\0';
-
-    if (Line[0] == 'x')
-    { // offset first
-        int Parsed = 0;
-        if (sscanf(Line, "x=%d,y=%d%n", &Cfg->OffsetX, &Cfg->OffsetY, &Parsed) != 2 || Line[Parsed] != '\0')
-            fprintf(stderr, "Invalid offset in rc file\n");
-
-        if (fgets(Line, sizeof Line, File))
-        {
-            Line[strcspn(Line, "\n")] = '\0';
-            if (isxdigit((unsigned char)Line[0]))
-                strncpy(Cfg->BgColor, Line, sizeof Cfg->BgColor - 1);
-        }
-    }
-    else if (isxdigit((unsigned char)Line[0]))
-    { // just colour
-        strncpy(Cfg->BgColor, Line, sizeof Cfg->BgColor - 1);
-    }
-
-    fclose(File);
+    toml_free(root);
     return 1;
 }
 
@@ -341,7 +362,6 @@ static void setWallpaper(const WallpaperConfig *Cfg)
         XFreePixmap(Dpy, tile);
         break;
     }
-    break;
 
     default:
         fprintf(stderr, "unhandled mode\n");
