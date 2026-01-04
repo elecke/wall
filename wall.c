@@ -20,7 +20,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#define  AVIF_LOADER_IMPLEMENTATION
+#define AVIF_LOADER_IMPLEMENTATION
 #include "avif.h"
 #include "toml-c.h"
 
@@ -179,8 +179,10 @@ static int loadConfig(WallpaperConfig *Cfg)
     {
         toml_value_t x_val = toml_array_int(offset_arr, 0);
         toml_value_t y_val = toml_array_int(offset_arr, 1);
-        if (x_val.ok) Cfg->OffsetX = (int)x_val.u.i;
-        if (y_val.ok) Cfg->OffsetY = (int)y_val.u.i;
+        if (x_val.ok)
+            Cfg->OffsetX = (int)x_val.u.i;
+        if (y_val.ok)
+            Cfg->OffsetY = (int)y_val.u.i;
     }
 
     // Get background_color (optional)
