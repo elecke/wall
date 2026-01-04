@@ -20,6 +20,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#define  AVIF_LOADER_IMPLEMENTATION
 #include "avif.h"
 #include "toml-c.h"
 

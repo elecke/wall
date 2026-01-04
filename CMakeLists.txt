@@ -16,7 +16,7 @@ set(CMAKE_C_STANDARD 11)
 option(NATIVE_BUILD "build with -march=native -mtune=native" OFF)
 option(USE_MIMALLOC "use mimalloc allocator" OFF)
 
-add_executable(wall wall.c avif.c)
+add_executable(wall wall.c)
 
 target_compile_options(wall PRIVATE -O3 -ffast-math -fmath-errno -flto -fPIC -fPIE -fstack-protector-all)
 
