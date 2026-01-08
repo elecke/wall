@@ -10,8 +10,6 @@
  *   wall // restore saved settings
  */
 
-// NOLINTBEGIN(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-
 #include <Imlib2.h>
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
@@ -541,5 +539,3 @@ int main(int Argc, char *Argv[])
     saveConfig(&Cfg);
     return EXIT_SUCCESS;
 }
-
-// NOLINTEND(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)

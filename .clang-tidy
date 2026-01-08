@@ -7,7 +7,6 @@ Checks: >
   clang-analyzer-*,
   misc-*,
   -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
-  -readability-identifier-length,
   -readability-magic-numbers,
   -misc-include-cleaner
 WarningsAsErrors: "*"
