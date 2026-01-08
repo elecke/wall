@@ -10,6 +10,8 @@
  *   wall // restore saved settings
  */
 
+// NOLINTBEGIN(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+
 #include <Imlib2.h>
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
@@ -18,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <unistd.h>
 
 #define AVIF_LOADER_IMPLEMENTATION
@@ -85,26 +88,32 @@ static void die(const char *Message)
 // Convert textual mode name to enum. Terminates on failure.
 static WallpaperMode parseMode(const char *Str)
 {
-    for (size_t I = 0; I < sizeof ModeLUT / sizeof *ModeLUT; ++I)
-        if (strcmp(Str, ModeLUT[I].Name) == 0)
-            return ModeLUT[I].Mode;
+    for (size_t idx = 0; idx < sizeof ModeLUT / sizeof *ModeLUT; ++idx)
+    {
+        if (strcmp(Str, ModeLUT[idx].Name) == 0)
+        {
+            return ModeLUT[idx].Mode;
+        }
+    }
 
-    fprintf(stderr, "Invalid mode: %s\nAllowed: center fill max scale tile\n", Str);
+    (void)fprintf(stderr, "Invalid mode: %s\nAllowed: center fill max scale tile\n", Str);
     exit(EXIT_FAILURE);
 }
 
 // Hex digit to integer (0–15).
-static inline int hexVal(int C)
+static inline int hexVal(int chr)
 {
-    return (C <= '9') ? C - '0' : 10 + (C & 0x5F) - 'A';
+    return (chr <= '9') ? chr - '0' : 10 + (chr & 0x5F) - 'A';
 }
 
 static char *getConfigPath(char *Buffer, size_t Size)
 {
     const char *Home = getenv("HOME");
     if (!Home)
+    {
         die("HOME not set");
-    snprintf(Buffer, Size, CONFIG_FILE, Home);
+    }
+    (void)snprintf(Buffer, Size, CONFIG_FILE, Home);
     return Buffer;
 }
 
@@ -114,18 +123,20 @@ static void saveConfig(const WallpaperConfig *Cfg)
     char Path[PATH_MAX];
     FILE *File = fopen(getConfigPath(Path, sizeof Path), "w");
     if (!File)
+    {
         die("open config");
+    }
 
-    fprintf(File, "path = \"%s\"\n", Cfg->Path);
-    fprintf(File, "mode = \"%s\"\n", ModeLUT[Cfg->Mode].Name);
+    (void)fprintf(File, "path = \"%s\"\n", Cfg->Path);
+    (void)fprintf(File, "mode = \"%s\"\n", ModeLUT[Cfg->Mode].Name);
 
     if ((Cfg->Mode == WM_Fill || Cfg->Mode == WM_Center) && (Cfg->OffsetX || Cfg->OffsetY))
     {
-        fprintf(File, "offset = [%d, %d]\n", Cfg->OffsetX, Cfg->OffsetY);
+        (void)fprintf(File, "offset = [%d, %d]\n", Cfg->OffsetX, Cfg->OffsetY);
     }
 
-    fprintf(File, "background_color = \"%s\"\n", Cfg->BgColor);
-    fclose(File);
+    (void)fprintf(File, "background_color = \"%s\"\n", Cfg->BgColor);
+    (void)fclose(File);
 }
 
 static int loadConfig(WallpaperConfig *Cfg)
@@ -135,14 +146,16 @@ static int loadConfig(WallpaperConfig *Cfg)
 
     FILE *File = fopen(getConfigPath(Path, sizeof Path), "r");
     if (!File)
+    {
         return 0;
+    }
 
     toml_table_t *root = toml_parse_file(File, errbuf, sizeof(errbuf));
-    fclose(File);
+    (void)fclose(File);
 
     if (!root)
     {
-        fprintf(stderr, "TOML parse error: %s\n", errbuf);
+        (void)fprintf(stderr, "TOML parse error: %s\n", errbuf);
         return 0;
     }
 
@@ -154,7 +167,7 @@ static int loadConfig(WallpaperConfig *Cfg)
     toml_value_t path_val = toml_table_string(root, "path");
     if (!path_val.ok)
     {
-        fprintf(stderr, "Config missing 'path' key\n");
+        (void)fprintf(stderr, "Config missing 'path' key\n");
         toml_free(root);
         return 0;
     }
@@ -166,7 +179,7 @@ static int loadConfig(WallpaperConfig *Cfg)
     toml_value_t mode_val = toml_table_string(root, "mode");
     if (!mode_val.ok)
     {
-        fprintf(stderr, "Config missing 'mode' key\n");
+        (void)fprintf(stderr, "Config missing 'mode' key\n");
         toml_free(root);
         return 0;
     }
@@ -180,9 +193,13 @@ static int loadConfig(WallpaperConfig *Cfg)
         toml_value_t x_val = toml_array_int(offset_arr, 0);
         toml_value_t y_val = toml_array_int(offset_arr, 1);
         if (x_val.ok)
+        {
             Cfg->OffsetX = (int)x_val.u.i;
+        }
         if (y_val.ok)
+        {
             Cfg->OffsetY = (int)y_val.u.i;
+        }
     }
 
     // Get background_color (optional)
@@ -207,7 +224,8 @@ static Pixmap getOrCreateRootPixmap(Display *Dpy, Window Root, int Width, int He
     Pixmap Pix = None;
     Atom ActualType;
     int ActualFormat;
-    unsigned long NItems, BytesAfter;
+    unsigned long NItems;
+    unsigned long BytesAfter;
     unsigned char *Data = NULL;
     *created = 0;
 
@@ -218,14 +236,20 @@ static Pixmap getOrCreateRootPixmap(Display *Dpy, Window Root, int Width, int He
         Pix = *(Pixmap *)Data;
     }
     if (Data)
+    {
         XFree(Data);
+    }
 
     if (Pix != None)
     {
         Window RootRet;
-        int X, Y;
-        unsigned int WidthRet, HeightRet, BorderRet, DepthRet;
-        if (!XGetGeometry(Dpy, Pix, &RootRet, &X, &Y, &WidthRet, &HeightRet, &BorderRet, &DepthRet) ||
+        int xpos;
+        int ypos;
+        unsigned int WidthRet;
+        unsigned int HeightRet;
+        unsigned int BorderRet;
+        unsigned int DepthRet;
+        if (!XGetGeometry(Dpy, Pix, &RootRet, &xpos, &ypos, &WidthRet, &HeightRet, &BorderRet, &DepthRet) ||
             WidthRet != (unsigned int)Width || HeightRet != (unsigned int)Height)
         {
             Pix = None;
@@ -239,30 +263,32 @@ static Pixmap getOrCreateRootPixmap(Display *Dpy, Window Root, int Width, int He
     }
 
     // Always repaint the background colour
-    int R = 0, G = 0, B = 0;
+    int red = 0;
+    int grn = 0;
+    int blu = 0;
     size_t Len = strlen(Hex);
     if (Len == 3)
     {
-        R = hexVal(Hex[0]) * 17;
-        G = hexVal(Hex[1]) * 17;
-        B = hexVal(Hex[2]) * 17;
+        red = hexVal(Hex[0]) * 17;
+        grn = hexVal(Hex[1]) * 17;
+        blu = hexVal(Hex[2]) * 17;
     }
     else if (Len == 6)
     {
-        R = (hexVal(Hex[0]) << 4) | hexVal(Hex[1]);
-        G = (hexVal(Hex[2]) << 4) | hexVal(Hex[3]);
-        B = (hexVal(Hex[4]) << 4) | hexVal(Hex[5]);
+        red = (hexVal(Hex[0]) << 4) | hexVal(Hex[1]);
+        grn = (hexVal(Hex[2]) << 4) | hexVal(Hex[3]);
+        blu = (hexVal(Hex[4]) << 4) | hexVal(Hex[5]);
     }
     else
     {
-        fprintf(stderr, "Invalid colour: %s\n", Hex);
+        (void)fprintf(stderr, "Invalid colour: %s\n", Hex);
         exit(EXIT_FAILURE);
     }
 
     GC GCtx = XCreateGC(Dpy, Pix, 0, NULL);
-    XColor Col = {.red = (unsigned short)(R * 257),
-                  .green = (unsigned short)(G * 257),
-                  .blue = (unsigned short)(B * 257),
+    XColor Col = {.red = (unsigned short)(red * 257),
+                  .green = (unsigned short)(grn * 257),
+                  .blue = (unsigned short)(blu * 257),
                   .flags = DoRed | DoGreen | DoBlue};
 
     XAllocColor(Dpy, DefaultColormap(Dpy, DefaultScreen(Dpy)), &Col);
@@ -274,11 +300,14 @@ static Pixmap getOrCreateRootPixmap(Display *Dpy, Window Root, int Width, int He
 }
 
 // Core wallpaper routine
+// NOLINTNEXTLINE(readability-function-size)
 static void setWallpaper(const WallpaperConfig *Cfg)
 {
     Display *Dpy = XOpenDisplay(NULL);
     if (!Dpy)
+    {
         die("XOpenDisplay");
+    }
 
     const int Scr = DefaultScreen(Dpy);
     const Window Root = RootWindow(Dpy, Scr);
@@ -297,7 +326,7 @@ static void setWallpaper(const WallpaperConfig *Cfg)
     Imlib_Image Img = (ext && strcasecmp(ext, ".avif") == 0) ? loadAvif(Cfg->Path) : imlib_load_image(Cfg->Path);
     if (!Img)
     {
-        fprintf(stderr, "Cannot load: %s\n", Cfg->Path);
+        (void)fprintf(stderr, "Cannot load: %s\n", Cfg->Path);
         XCloseDisplay(Dpy);
         exit(EXIT_FAILURE);
     }
@@ -308,37 +337,42 @@ static void setWallpaper(const WallpaperConfig *Cfg)
 
     imlib_context_set_drawable(Pix);
 
-    int Dx = 0, Dy = 0, NewW, NewH;
-    double Scale = 1.0, SX = 1.0, SY = 1.0;
+    int dstX = 0;
+    int dstY = 0;
+    int NewW;
+    int NewH;
+    double Scale = 1.0;
+    double scaleX = 1.0;
+    double scaleY = 1.0;
 
     switch (Cfg->Mode)
     {
     case WM_Center:
-        Dx = (ScrW - ImgW) / 2 + Cfg->OffsetX;
-        Dy = (ScrH - ImgH) / 2 + Cfg->OffsetY;
-        imlib_render_image_on_drawable_at_size(Dx, Dy, ImgW, ImgH);
+        dstX = ((ScrW - ImgW) / 2) + Cfg->OffsetX;
+        dstY = ((ScrH - ImgH) / 2) + Cfg->OffsetY;
+        imlib_render_image_on_drawable_at_size(dstX, dstY, ImgW, ImgH);
         break;
 
     case WM_Fill:
-        SX = (double)ScrW / ImgW;
-        SY = (double)ScrH / ImgH;
-        Scale = (SX > SY) ? SX : SY;
+        scaleX = (double)ScrW / ImgW;
+        scaleY = (double)ScrH / ImgH;
+        Scale = (scaleX > scaleY) ? scaleX : scaleY;
         NewW = (int)(ImgW * Scale);
         NewH = (int)(ImgH * Scale);
-        Dx = (ScrW - NewW) / 2 + Cfg->OffsetX;
-        Dy = (ScrH - NewH) / 2 + Cfg->OffsetY;
-        imlib_render_image_on_drawable_at_size(Dx, Dy, NewW, NewH);
+        dstX = ((ScrW - NewW) / 2) + Cfg->OffsetX;
+        dstY = ((ScrH - NewH) / 2) + Cfg->OffsetY;
+        imlib_render_image_on_drawable_at_size(dstX, dstY, NewW, NewH);
         break;
 
     case WM_Max:
-        SX = (double)ScrW / ImgW;
-        SY = (double)ScrH / ImgH;
-        Scale = (SX < SY) ? SX : SY;
+        scaleX = (double)ScrW / ImgW;
+        scaleY = (double)ScrH / ImgH;
+        Scale = (scaleX < scaleY) ? scaleX : scaleY;
         NewW = (int)(ImgW * Scale);
         NewH = (int)(ImgH * Scale);
-        Dx = (ScrW - NewW) / 2;
-        Dy = (ScrH - NewH) / 2;
-        imlib_render_image_on_drawable_at_size(Dx, Dy, NewW, NewH);
+        dstX = (ScrW - NewW) / 2;
+        dstY = (ScrH - NewH) / 2;
+        imlib_render_image_on_drawable_at_size(dstX, dstY, NewW, NewH);
         break;
 
     case WM_Scale:
@@ -353,20 +387,20 @@ static void setWallpaper(const WallpaperConfig *Cfg)
 
         imlib_context_set_drawable(Pix);
 
-        GC gc = XCreateGC(Dpy, Pix, 0, NULL);
-        XSetTile(Dpy, gc, tile);
-        XSetFillStyle(Dpy, gc, FillTiled);
-        XSetTSOrigin(Dpy, gc, 0, 0);
+        GC gctx = XCreateGC(Dpy, Pix, 0, NULL);
+        XSetTile(Dpy, gctx, tile);
+        XSetFillStyle(Dpy, gctx, FillTiled);
+        XSetTSOrigin(Dpy, gctx, 0, 0);
 
-        XFillRectangle(Dpy, Pix, gc, 0, 0, ScrW, ScrH);
+        XFillRectangle(Dpy, Pix, gctx, 0, 0, ScrW, ScrH);
 
-        XFreeGC(Dpy, gc);
+        XFreeGC(Dpy, gctx);
         XFreePixmap(Dpy, tile);
         break;
     }
 
     default:
-        fprintf(stderr, "unhandled mode\n");
+        (void)fprintf(stderr, "unhandled mode\n");
         abort();
     }
 
@@ -387,7 +421,9 @@ static void setWallpaper(const WallpaperConfig *Cfg)
     XFlush(Dpy);
 
     if (created)
+    {
         XSetCloseDownMode(Dpy, RetainPermanent);
+    }
 
     imlib_context_set_image(Img);
     imlib_free_image();
@@ -427,20 +463,26 @@ static error_t parse_opt(int Key, char *Arg, struct argp_state *State)
     case 'x':
         Args->OffsetX = (int)strtol(Arg, &End, 10);
         if (*End != '\0')
+        {
             argp_error(State, "Invalid X offset: %s", Arg);
+        }
         Args->HasOffsetX = 1;
         break;
 
     case 'y':
         Args->OffsetY = (int)strtol(Arg, &End, 10);
         if (*End != '\0')
+        {
             argp_error(State, "Invalid Y offset: %s", Arg);
+        }
         Args->HasOffsetY = 1;
         break;
 
     case ARGP_KEY_ARG:
         if (Args->Image)
+        {
             argp_error(State, "Too many arguments");
+        }
         Args->Image = Arg;
         break;
 
@@ -464,12 +506,16 @@ int main(int Argc, char *Argv[])
     argp_parse(&argp, Argc, Argv, 0, NULL, &Args);
 
     if (Args.Color)
+    {
         strncpy(Cfg.BgColor, Args.Color, sizeof Cfg.BgColor - 1);
+    }
 
     if (Args.Image)
     {
         if (!realpath(Args.Image, Cfg.Path))
+        {
             die("realpath");
+        }
 
         Cfg.Mode = Args.HasMode ? parseMode(Args.ModeStr) : WM_Fill;
 
@@ -477,7 +523,7 @@ int main(int Argc, char *Argv[])
         {
             if (Cfg.Mode != WM_Fill && Cfg.Mode != WM_Center)
             {
-                fprintf(stderr, "Offset only valid for fill/center modes\n");
+                (void)fprintf(stderr, "Offset only valid for fill/center modes\n");
                 return EXIT_FAILURE;
             }
             Cfg.OffsetX = Args.OffsetX;
@@ -486,7 +532,7 @@ int main(int Argc, char *Argv[])
     }
     else if (!loadConfig(&Cfg))
     {
-        fprintf(stderr, "No stored configuration\n");
+        (void)fprintf(stderr, "No stored configuration\n");
         argp_help(&argp, stderr, ARGP_HELP_STD_USAGE, Argv[0]);
         return EXIT_FAILURE;
     }
@@ -495,3 +541,5 @@ int main(int Argc, char *Argv[])
     saveConfig(&Cfg);
     return EXIT_SUCCESS;
 }
+
+// NOLINTEND(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
