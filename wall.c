@@ -220,6 +220,7 @@ static Pixmap getOrCreateRootPixmap(Display *Dpy, Window Root, int Width, int He
 {
     Atom AtomRootPixmap = XInternAtom(Dpy, "_XROOTPMAP_ID", False);
     Pixmap Pix = None;
+    Pixmap OldPix = None;
     Atom ActualType;
     int ActualFormat;
     unsigned long NItems;
@@ -231,7 +232,8 @@ static Pixmap getOrCreateRootPixmap(Display *Dpy, Window Root, int Width, int He
                            &BytesAfter, &Data) == Success &&
         ActualType == XA_PIXMAP && ActualFormat == 32 && NItems == 1)
     {
-        Pix = *(Pixmap *)Data;
+        OldPix = *(Pixmap *)Data;
+        Pix = OldPix;
     }
     if (Data)
     {
@@ -256,6 +258,10 @@ static Pixmap getOrCreateRootPixmap(Display *Dpy, Window Root, int Width, int He
 
     if (Pix == None)
     {
+        if (OldPix != None)
+        {
+            XKillClient(Dpy, OldPix);
+        }
         Pix = XCreatePixmap(Dpy, Root, Width, Height, DefaultDepth(Dpy, DefaultScreen(Dpy)));
         *created = 1;
     }
