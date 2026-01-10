@@ -21,6 +21,8 @@
 #include <strings.h>
 #include <unistd.h>
 
+#include "strcopy.h"
+
 #define AVIF_LOADER_IMPLEMENTATION
 #include "avif.h"
 #include "toml-c.h"
@@ -159,7 +161,7 @@ static int loadConfig(WallpaperConfig *Cfg)
 
     // Initialize defaults
     Cfg->OffsetX = Cfg->OffsetY = 0;
-    strcpy(Cfg->BgColor, "000000");
+    strcopy(Cfg->BgColor, sizeof(Cfg->BgColor), "000000", strlen("000000"));
 
     // Get path
     toml_value_t path_val = toml_table_string(root, "path");
@@ -169,8 +171,7 @@ static int loadConfig(WallpaperConfig *Cfg)
         toml_free(root);
         return 0;
     }
-    strncpy(Cfg->Path, path_val.u.s, sizeof(Cfg->Path) - 1);
-    Cfg->Path[sizeof(Cfg->Path) - 1] = '\0';
+    strcopy(Cfg->Path, sizeof(Cfg->Path), path_val.u.s, strlen(path_val.u.s));
     free(path_val.u.s);
 
     // Get mode
@@ -204,8 +205,7 @@ static int loadConfig(WallpaperConfig *Cfg)
     toml_value_t color_val = toml_table_string(root, "background_color");
     if (color_val.ok)
     {
-        strncpy(Cfg->BgColor, color_val.u.s, sizeof(Cfg->BgColor) - 1);
-        Cfg->BgColor[sizeof(Cfg->BgColor) - 1] = '\0';
+        strcopy(Cfg->BgColor, sizeof(Cfg->BgColor), color_val.u.s, strlen(color_val.u.s));
         free(color_val.u.s);
     }
 
@@ -503,7 +503,7 @@ static struct argp argp = {options, parse_opt, args_doc, doc, NULL, NULL, NULL};
 int main(int Argc, char *Argv[])
 {
     WallpaperConfig Cfg = {.Mode = WM_Fill};
-    strcpy(Cfg.BgColor, "000000");
+    strcopy(Cfg.BgColor, sizeof(Cfg.BgColor), "000000", strlen("000000"));
 
     Arguments Args = {0};
 
@@ -511,7 +511,7 @@ int main(int Argc, char *Argv[])
 
     if (Args.Color)
     {
-        strncpy(Cfg.BgColor, Args.Color, sizeof Cfg.BgColor - 1);
+        strcopy(Cfg.BgColor, sizeof(Cfg.BgColor), Args.Color, strlen(Args.Color));
     }
 
     if (Args.Image)
