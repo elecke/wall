@@ -21,7 +21,7 @@ static inline void strCopy(char *Dest, size_t DSize, const char *Src, size_t SLe
         memcpy(Dest, Src, SLen);
         Dest[SLen] = 0;
     }
-    else if (DSize != 0U)
+    else if (DSize != 0)
     {
         Dest[0] = 0;
     }
