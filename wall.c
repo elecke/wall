@@ -161,7 +161,7 @@ static int loadConfig(WallpaperConfig *Cfg)
 
     // Initialize defaults
     Cfg->OffsetX = Cfg->OffsetY = 0;
-    strcopy(Cfg->BgColor, sizeof(Cfg->BgColor), "000000", strlen("000000"));
+    strCopy(Cfg->BgColor, sizeof(Cfg->BgColor), "000000", strlen("000000"));
 
     // Get path
     toml_value_t path_val = toml_table_string(root, "path");
@@ -171,7 +171,7 @@ static int loadConfig(WallpaperConfig *Cfg)
         toml_free(root);
         return 0;
     }
-    strcopy(Cfg->Path, sizeof(Cfg->Path), path_val.u.s, strlen(path_val.u.s));
+    strCopy(Cfg->Path, sizeof(Cfg->Path), path_val.u.s, strlen(path_val.u.s));
     free(path_val.u.s);
 
     // Get mode
@@ -205,7 +205,7 @@ static int loadConfig(WallpaperConfig *Cfg)
     toml_value_t color_val = toml_table_string(root, "background_color");
     if (color_val.ok)
     {
-        strcopy(Cfg->BgColor, sizeof(Cfg->BgColor), color_val.u.s, strlen(color_val.u.s));
+        strCopy(Cfg->BgColor, sizeof(Cfg->BgColor), color_val.u.s, strlen(color_val.u.s));
         free(color_val.u.s);
     }
 
@@ -503,7 +503,7 @@ static struct argp argp = {options, parse_opt, args_doc, doc, NULL, NULL, NULL};
 int main(int Argc, char *Argv[])
 {
     WallpaperConfig Cfg = {.Mode = WM_Fill};
-    strcopy(Cfg.BgColor, sizeof(Cfg.BgColor), "000000", strlen("000000"));
+    strCopy(Cfg.BgColor, sizeof(Cfg.BgColor), "000000", strlen("000000"));
 
     Arguments Args = {0};
 
@@ -511,7 +511,7 @@ int main(int Argc, char *Argv[])
 
     if (Args.Color)
     {
-        strcopy(Cfg.BgColor, sizeof(Cfg.BgColor), Args.Color, strlen(Args.Color));
+        strCopy(Cfg.BgColor, sizeof(Cfg.BgColor), Args.Color, strlen(Args.Color));
     }
 
     if (Args.Image)

@@ -7,23 +7,23 @@
 #include <string.h>
 
 #ifdef NDEBUG
-#define DEBUGASSERT(x) ((void)0)
+#define DEBUG_ASSERT(condition) ((void)0)
 #else
 #include <assert.h>
-#define DEBUGASSERT(x) assert(x)
+#define DEBUG_ASSERT(condition) assert(condition)
 #endif
 
-static inline void strcopy(char *dest, size_t dsize, const char *src, size_t slen)
+static inline void strCopy(char *Dest, size_t DSize, const char *Src, size_t SLen)
 {
-    DEBUGASSERT(slen < dsize);
-    if (slen < dsize)
+    DEBUG_ASSERT(SLen < DSize);
+    if (SLen < DSize)
     {
-        memcpy(dest, src, slen);
-        dest[slen] = 0;
+        memcpy(Dest, Src, SLen);
+        Dest[SLen] = 0;
     }
-    else if (dsize != 0U)
+    else if (DSize != 0U)
     {
-        dest[0] = 0;
+        Dest[0] = 0;
     }
 }
 
